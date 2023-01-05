@@ -1,0 +1,5 @@
+-linearity correction
+-nd_compensation
+-rad_combine
+-EQ_compensated_radiances
+-create rgb image

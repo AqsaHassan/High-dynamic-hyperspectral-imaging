@@ -1,0 +1,9 @@
+mask_tablet = ones(size(digital_numbers_2x));
+
+mask_tablet(8:9, 1:483, 399:end, 1) = 0;
+mask_tablet(10:16)
+
+imshow(squeeze(mask_tablet(8, :, :, 1)));
+
+figure;
+imshow(squeeze(digital_numbers_2x(8, :, :, 1)), [0 500]);

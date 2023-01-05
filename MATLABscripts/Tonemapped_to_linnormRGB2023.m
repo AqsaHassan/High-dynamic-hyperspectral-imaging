@@ -1,0 +1,105 @@
+
+clc; %clear; close all
+
+%% Get the cube and other data
+Tonemapped_cube = im4;
+mx = max(im4(:));
+radcube16 = im4/mx*65535;
+
+CUBE = radcube16(:,:,1:119);
+[m,n,bandN] = size(CUBE);
+bands = [407.469357, 410.661992, 413.854626, 417.047260, 420.239895, 423.432529, 426.625163, 429.817798, 433.010432, 436.203066, 439.395701, 442.588335, 445.780969, 448.973603, 452.166238, 455.358872, 458.551506, 461.744141, 464.936775, 468.129409, 471.322044, 474.514678, 477.707312, 480.899947, 484.092581, 487.285215, 490.477849, 493.670484, 496.863118, 500.055752, 503.248387, 506.441021, 509.633655, 512.826290, 516.018924, 519.211558, 522.404193, 525.596827, 528.789461, 531.982095, 535.174730, 538.367364, 541.559998, 544.752633, 547.945267, 551.137901, 554.330536, 557.523170, 560.715804, 563.908439, 567.101073, 570.293707, 573.486341, 576.678976, 579.871610, 583.064244, 586.256879, 589.449513, 592.642147, 595.834782, 599.027416, 602.220050, 605.412685, 608.605319, 611.797953, 614.990587, 618.183222, 621.375856, 624.568490, 627.761125, 630.953759, 634.146393, 637.339028, 640.531662, 643.724296, 646.916931, 650.109565, 653.302199, 656.494833, 659.687468, 662.880102, 666.072736, 669.265371, 672.458005, 675.650639, 678.843274, 682.035908, 685.228542, 688.421177, 691.613811, 694.806445, 697.999079, 701.191714, 704.384348, 707.576982, 710.769617, 713.962251, 717.154885, 720.347520, 723.540154, 726.732788, 729.925423, 733.118057, 736.310691, 739.503325, 742.695960, 745.888594, 749.081228, 752.273863, 755.466497, 758.659131, 761.851766, 765.044400, 768.237034, 771.429669, 774.622303, 777.814937, 781.007571, 784.200206, 787.392840, 790.585474, 793.778109, 796.970743, 800.163377, 803.356012, 806.548646, 809.741280, 812.933915, 816.126549, 819.319183, 822.511818, 825.704452, 828.897086, 832.089720, 835.282355, 838.474989, 841.667623, 844.860258, 848.052892, 851.245526, 854.438161, 857.630795, 860.823429, 864.016064, 867.208698, 870.401332, 873.593966, 876.786601, 879.979235, 883.171869, 886.364504, 889.557138, 892.749772, 895.942407, 899.135041, 902.327675, 905.520310, 908.712944, 911.905578, 915.098212, 918.290847, 921.483481, 924.676115, 927.868750, 931.061384, 934.254018, 937.446653, 940.639287, 943.831921, 947.024556, 950.217190, 953.409824, 956.602458, 959.795093, 962.987727, 966.180361, 969.372996, 972.565630, 975.758264, 978.950899, 982.143533, 985.336167, 988.528802, 991.721436, 994.914070, 998.106704];
+bands = bands(1:119);
+
+pathTB = [pwd filesep 'tools' filesep];
+
+% choose an observer
+listOBS = dir(fullfile([pathTB 'observers'],'*.txt'));
+c = listdlg('PromptString','Select an observer:',...
+                           'SelectionMode','single',...
+                           'InitialValue',4, ...
+                           'ListString',{listOBS.name});
+fullCMFs = importdata([pathTB 'observers' filesep listOBS(c).name]);
+obsName = erase(listOBS(c).name,'.txt');
+
+% choose a destination RGB space
+listDCS = dir(fullfile([pathTB 'colorSpaces_ICC'],'*.icc'));
+c = listdlg('PromptString','Select a destination RGB space:',...
+                           'SelectionMode','single',...
+                           'InitialValue',2, ...
+                           'ListString',{listDCS.name});
+DCS = iccread([pathTB 'colorSpaces_ICC' filesep listDCS(c).name]);
+
+%% calculate the RGB2XYZ transformation matrix
+
+wtP = DCS.Header.Illuminant';
+gamma = DCS.MatTRC.GreenTRC.Params;
+%gamma = 1;
+redChr = DCS.MatTRC.RedMatrixColumn';
+greenChr = DCS.MatTRC.GreenMatrixColumn';
+blueChr = DCS.MatTRC.BlueMatrixColumn';
+
+% ref: http://www.brucelindbloom.com/ in "Computing RGB-to-XYZ and
+% XYZ-to-RGB matrices" section
+
+R_x = redChr(1)/sum(redChr);
+R_y = redChr(2)/sum(redChr);
+G_x = greenChr(1)/sum(greenChr);
+G_y = greenChr(2)/sum(greenChr);
+B_x = blueChr(1)/sum(blueChr);
+B_y = blueChr(2)/sum(blueChr);
+
+S = [(R_x/R_y) (G_x/G_y) (B_x/B_y); 1 1 1; ...
+    ((1-R_x-R_y)/R_y) ((1-G_x-G_y)/G_y) ((1-B_x-B_y)/B_y)] \ wtP;
+RGBtoXYZ = [S(1)*(R_x/R_y) S(2)*(G_x/G_y) S(3)*(B_x/B_y); S(1) S(2) S(3); ...
+    S(1)*((1-R_x-R_y)/R_y) S(2)*((1-G_x-G_y)/G_y) S(3)*((1-B_x-B_y)/B_y)];
+
+%% calculation of the RGB image
+
+roof = double(intmax('uint16'));
+
+lincube = reshape(double(CUBE)/roof,[],bandN);
+
+CMFs_x = interp1(fullCMFs(:,1),fullCMFs(:,2),bands,'spline')';
+CMFs_y = interp1(fullCMFs(:,1),fullCMFs(:,3),bands,'spline')';
+CMFs_z = interp1(fullCMFs(:,1),fullCMFs(:,4),bands,'spline')';
+CMFs = [CMFs_x CMFs_y CMFs_z];
+
+
+%the bradford-adapted sRGB
+sp_tristREF = CMFs;
+tristREF = sum(sp_tristREF,1);
+linWT = (RGBtoXYZ\tristREF')./max(RGBtoXYZ\tristREF');
+WT = linWT.^(1/gamma);
+
+trist = lincube * sp_tristREF;
+
+%linRGB = (RGBtoXYZ\trist')./max(RGBtoXYZ\tristREF');
+linRGB = (RGBtoXYZ\trist');
+linRGBnorm = linRGB./max(linRGB(:));
+
+linRGB(linRGB < 0) = 0;
+
+RGB_gamma = linRGB.^(1/gamma);
+
+imRGB = reshape(RGB_gamma',m,n,3);
+
+CUBEname = 'photograpgic_tonemapped_hyperspectral_Penimage';
+imwrite(uint16(imRGB*roof), ...
+   [pwd filesep 'colorIMG_' CUBEname '_' obsName '.tif'],'tif')
+
+% CUBEname = 'dark_region_white';
+%  imwrite((imRGB), ...
+%     [pwd filesep 'colorIMG_' CUBEname '_' obsName '.tif'],'tif')
+ 
+hdrwrite(imRGB, 'photograpgic_tonemapped_hyperspectral_Penimage.hdr')
+linRGB = reshape(linRGB',m,n,3);
+hdrwrite(linRGB,'photograpgic_tonemapped_hyperspectral_TruePenimage.hdr')
+linRGBnorm(linRGBnorm < 0) = 0;
+
+linRGBnorm = reshape(linRGBnorm',m,n,3);
+hdrwrite(linRGBnorm,'photograpgic_tonemapped_hyperspectral_linRGBnormPenimage.hdr')
+
+f = warndlg(sprintf(['For the correct visualization of the tiff file,' ...
+    ' assign the %s profile!'],listDCS(c).name));
+waitfor(f);

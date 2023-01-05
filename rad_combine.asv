@@ -1,0 +1,57 @@
+%Load data if required
+
+load('data_phy_EQ_1mEQ2.mat')
+
+% Threshold for linearity check. The digital count response is linear
+% uptill this point
+upper_threshold = 45000;
+
+% number of exposures
+n_exp = size(digital_numbers, 1);
+
+n_rows = size(digital_numbers, 2);
+n_cols = size(digital_numbers, 3);
+n_bands = size(digital_numbers, 4);
+
+% digital numbers flattened. dimensions of (n_rows*n_cols*n_bands*n_exp, 1)
+digital_numbers_flat = digital_numbers(:);
+
+% digital numbers flattened. dimensions of (n_exp, n_rows*n_cols*n_bands)
+digital_numbers_flat = reshape(digital_numbers_flat, n_exp, n_rows*n_cols*n_bands);
+
+% mask flattened. dimension of (n_exp, n_rows*n_cols*n_bands).
+mask_flat = digital_numbers_flat <= upper_threshold;
+
+mask_tablet = ones(size(digital_numbers));
+% mask_tablet(8:9, 1:488, 399:end, :) = 0;
+% mask_tablet(10:16, 1:end, 446:end, :) = 0;
+
+% mask tablet flattened. dimensions of (n_rows*n_cols*n_bands*n_exp, 1)
+mask_tablet = mask_tablet(:);
+
+% mask tablet flattened. dimensions of (n_exp, n_rows*n_cols*n_bands)
+mask_tablet = reshape(mask_tablet, n_exp, n_rows*n_cols*n_bands);
+
+final_mask = mask_tablet & mask_flat;
+
+% radiances flattened. dimensions of (n_rows*n_cols*n_bands*n_exp, 1)
+radiances_flat = radiances(:);
+
+% radiances flattened. dimensions of (n_exp, n_rows*n_cols*n_bands)
+radiances_flat = reshape(radiances_flat, n_exp, n_rows*n_cols*n_bands);
+
+% radiances flattened. dimensions of (n_exp, n_rows*n_cols*n_bands)
+radiances_masked_flat = radiances_flat .* final_mask;
+
+% number of valid entries flattened. dimensions of (1, n_rows*n_cols*n_bands)
+% each number is number of valid entries (within threshold) in each
+% location.
+% we just apply range condition and them sum across exposure dimension
+% which would give us number of entries satisfying the condition.
+n_valid_entries_flat = sum(final_mask);
+
+radiances_mean = sum(radiances_masked_flat) ./ n_valid_entries_flat;
+
+radiances_mean_without_eq = reshape(radiances_mean, size(radiances, 2:4));
+
+

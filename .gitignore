@@ -1,0 +1,9 @@
+
+*.img
+*.hdr
+*.hyspex
+data/
+HDR_Toolbox-master/
+*.mat
+*.png
+calibration/digital_numbers/tile_VNIR_1800_SN00841_37059us_2022-07-21T164340_raw
